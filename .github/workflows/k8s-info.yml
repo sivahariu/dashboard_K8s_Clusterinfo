@@ -202,7 +202,7 @@ jobs:
           </head>
           <body>
               <header>
-                  <h1>Kubernetes Cluster Live Info Dashboard</h1>
+                  <h1>Kubernetes Cluster Info Dashboard</h1>
                   <p>Generated on: $TIMESTAMP</p>
               </header>
               <main>
