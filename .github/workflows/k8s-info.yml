@@ -1,20 +1,22 @@
 name: Generate K8s Cluster Dashboard
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 
+# Grant the standard GitHub token permissions to deploy directly to Pages hosting
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+# Ensure only one deployment runs at a time to prevent conflicts
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
   build-and-deploy:
-    runs-on: self-hosted # Everything runs entirely on your VM
+    runs-on: self-hosted # Executes natively on your 1-vCPU RHEL VM
 
     steps:
       - name: Checkout Repository Code
@@ -22,6 +24,7 @@ jobs:
 
       - name: Install System Dependencies (Git & Node.js)
         run: |
+          echo "Syncing system packages..."
           sudo dnf install git nodejs -y
 
       - name: Set up Kubeconfig
@@ -33,29 +36,39 @@ jobs:
       - name: Ensure kubectl is installed
         run: |
           if ! command -v kubectl &> /dev/null; then
+            echo "kubectl missing. Downloading binary..."
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x ./kubectl
             sudo mv ./kubectl /usr/local/bin/kubectl
+          else
+            echo "kubectl is already available."
           fi
 
       - name: Extract Data and Generate HTML
         run: |
+          # 1. Fetch Cluster Metadata
           CLUSTER_INFO=$(kubectl cluster-info | head -n 2 | sed 's/\x1B\[[0-9;]*[JKmsu]//g')
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
+          # 2. Extract Infrastructure Nodes cleanly using explicit JSON arrays to handle spaces flawlessly
           NODE_ROWS=""
           while IFS=$'\t' read -r name status roles age version internal_ip os_image; do
             if [[ -z "$name" ]]; then continue; fi
+            
+            # Clean up empty or missing role values
             if [[ -z "$roles" || "$roles" == "<none>" ]]; then roles="worker"; fi
+
             NODE_ROWS="$NODE_ROWS<tr><td><strong>$name</strong></td><td><span class='badge badge-success'>$status</span></td><td><code>$roles</code></td><td>$age</td><td>$version</td><td>$internal_ip</td><td>$os_image</td></tr>"
           done < <(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\t"}{.metadata.labels.kubernetes\.io/role}{"\t"}{.metadata.creationTimestamp}{"\t"}{.status.nodeInfo.kubeletVersion}{"\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}' | sed 's/True/Ready/g')
 
+          # 3. Extract Running Pods across all namespaces
           POD_ROWS=""
           while read -r ns name ready status restarts age ip node; do
-            if [[ "$ns" == "NAMESPACE" ]]; then continue; fi
+            if [[ "$ns" == "NAMESPACE" || -z "$ns" ]]; then continue; fi
             POD_ROWS="$POD_ROWS<tr><td><code>$ns</code></td><td>$name</td><td>$ready</td><td><span class='badge badge-info'>$status</span></td><td>$restarts</td><td>$node</td></tr>"
           done < <(kubectl get pods -A -o wide | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}')
 
+          # 4. Generate the complete dashboard index.html file
           cat <<EOF > index.html
           <!DOCTYPE html>
           <html lang="en">
@@ -64,23 +77,46 @@ jobs:
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>Kubernetes Cluster Dashboard</title>
               <style>
-                  :root { --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f8fafc; --text-muted: #94a3b8; --primary: #38bdf8; --border: #334155; --success: #10b981; --info: #0ea5e9; }
-                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
-                  header { background-color: var(--card-bg); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; text-align: center; }
-                  header h1 { margin: 0; font-size: 1.8rem; color: var(--primary); }
+                  :root {
+                      --bg-color: #0f172a;
+                      --card-bg: #1e293b;
+                      --text-main: #f8fafc;
+                      --text-muted: #94a3b8;
+                      --primary: #38bdf8;
+                      --border: #334155;
+                      --success: #10b981;
+                      --info: #0ea5e9;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                      background-color: var(--bg-color);
+                      color: var(--text-main);
+                      margin: 0;
+                      padding: 0;
+                      display: flex;
+                      flex-direction: column;
+                      min-height: 100vh;
+                  }
+                  header {
+                      background-color: var(--card-bg);
+                      border-bottom: 1px solid var(--border);
+                      padding: 1.5rem 2rem;
+                      text-align: center;
+                  }
+                  header h1 { margin: 0; font-size: 1.8rem; color: var(--primary); letter-spacing: 0.5px; }
                   header p { margin: 0.5rem 0 0 0; color: var(--text-muted); font-size: 0.9rem; }
                   main { flex: 1; padding: 2rem; max-width: 1200px; margin: 0 auto; width: calc(100% - 4rem); }
                   .section-title { font-size: 1.3rem; margin-bottom: 1rem; color: var(--primary); border-left: 4px solid var(--primary); padding-left: 0.5rem; }
-                  .card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; overflow-x: auto; }
+                  .card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; overflow-x: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
                   table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
-                  th { background-color: #111827; color: var(--primary); padding: 0.75rem 1rem; border-bottom: 2px solid var(--border); }
+                  th { background-color: #111827; color: var(--primary); font-weight: 600; padding: 0.75rem 1rem; border-bottom: 2px solid var(--border); }
                   td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: #e2e8f0; }
                   tr:hover { background-color: #24334d; }
-                  code { background-color: #0f172a; padding: 0.2rem 0.4rem; border-radius: 4px; color: #f472b6; }
-                  .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+                  code { background-color: #0f172a; padding: 0.2rem 0.4rem; border-radius: 4px; color: #f472b6; font-family: monospace; }
+                  .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
                   .badge-success { background-color: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
                   .badge-info { background-color: rgba(14, 165, 233, 0.2); color: var(--info); border: 1px solid var(--info); }
-                  footer { background-color: var(--card-bg); border-top: 1px solid var(--border); text-align: center; padding: 1rem; font-size: 0.85rem; color: var(--text-muted); }
+                  footer { background-color: var(--card-bg); border-top: 1px solid var(--border); text-align: center; padding: 1rem; font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
               </style>
           </head>
           <body>
@@ -133,7 +169,7 @@ jobs:
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '.' # Captures the generated index.html
 
       - name: Deploy to GitHub Pages Direct
         uses: actions/deploy-pages@v4
