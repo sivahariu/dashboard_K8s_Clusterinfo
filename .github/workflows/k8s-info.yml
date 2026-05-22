@@ -1,10 +1,10 @@
-name: Extract Kubernetes Cluster Info
+name: Generate K8s Cluster Dashboard
 
 on:
-  workflow_dispatch: # Allows you to trigger this manually from the GitHub UI
+  workflow_dispatch: # Allows manual trigger
 
 jobs:
-  get-cluster-details:
+  build-html-dashboard:
     runs-on: self-hosted
 
     steps:
@@ -13,40 +13,221 @@ jobs:
 
       - name: Set up Kubeconfig
         run: |
-          # Create the local .kube directory on the runner VM
           mkdir -p $HOME/.kube
-          
-          # Save the secure GitHub Secret into the local config file
           echo "${{ secrets.KUBERNETES_KUBECONFIG }}" > $HOME/.kube/config
-          
-          # Restrict file permissions for security
           chmod 600 $HOME/.kube/config
 
-      - name: Install kubectl (If not present)
+      - name: Ensure kubectl is installed
         run: |
-          # Checks if kubectl is installed, downloads it if missing
           if ! command -v kubectl &> /dev/null; then
-            echo "kubectl not found. Installing..."
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x ./kubectl
             sudo mv ./kubectl /usr/local/bin/kubectl
-          else
-            echo "kubectl is already installed."
           fi
 
-      - name: Extract Cluster Information
+      - name: Extract Data and Generate HTML
         run: |
-          echo "=== Global Cluster Info ==="
-          kubectl cluster-info
-          
-          echo -e "\n=== Component Status ==="
-          kubectl get componentstatuses || echo "Component status check skipped (deprecated in newer K8s)"
-          
-          echo -e "\n=== Cluster Nodes ==="
-          kubectl get nodes -o wide
-          
-          echo -e "\n=== Namespaces ==="
-          kubectl get namespaces
-          
-          echo -e "\n=== Summary of Running Pods (All Namespaces) ==="
-          kubectl get pods -A --field-selector=status.phase=Running
+          # 1. Fetch Cluster Metadata
+          CLUSTER_INFO=$(kubectl cluster-info | head -n 2 | sed 's/\x1B\[[0-9;]*[JKmsu]//g') # Strips out ANSI colors
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          # 2. Extract Cluster Nodes and format as HTML table rows
+          NODE_ROWS=""
+          while read -r name status roles age version internal_ip os_image kernel; do
+            # Skip the header row
+            if [[ "$name" == "NAME" ]]; then continue; fi
+            NODE_ROWS="$NODE_ROWS<tr><td><strong>$name</strong></td><td><span class='badge badge-success'>$status</span></td><td>$roles</td><td>$age</td><td>$version</td><td>$internal_ip</td><td>$os_image</td></tr>"
+          done < <(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\t"}{.metadata.labels.kubernetes\.io/role}{"\t"}{.metadata.creationTimestamp}{"\t"}{.status.nodeInfo.kubeletVersion}{"\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}' | sed 's/True/Ready/g')
+
+          # 3. Extract Running Pods across all namespaces
+          POD_ROWS=""
+          while read -r ns name ready status restarts age ip node; do
+            if [[ "$ns" == "NAMESPACE" ]]; then continue; fi
+            POD_ROWS="$POD_ROWS<tr><td><code>$ns</code></td><td>$name</td><td>$ready</td><td><span class='badge badge-info'>$status</span></td><td>$restarts</td><td>$node</td></tr>"
+          done < <(kubectl get pods -A -o wide | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}')
+
+          # 4. Generate the complete dashboard.html file
+          cat <<EOF > dashboard.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Kubernetes Cluster Dashboard</title>
+              <style>
+                  :root {
+                      --bg-color: #0f172a;
+                      --card-bg: #1e293b;
+                      --text-main: #f8fafc;
+                      --text-muted: #94a3b8;
+                      --primary: #38bdf8;
+                      --border: #334155;
+                      --success: #10b981;
+                      --info: #0ea5e9;
+                  }
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                      background-color: var(--bg-color);
+                      color: var(--text-main);
+                      margin: 0;
+                      padding: 0;
+                      display: flex;
+                      flex-direction: column;
+                      min-height: 100vh;
+                  }
+                  header {
+                      background-color: var(--card-bg);
+                      border-bottom: 1px solid var(--border);
+                      padding: 1.5rem 2rem;
+                      text-align: center;
+                  }
+                  header h1 {
+                      margin: 0;
+                      font-size: 1.8rem;
+                      color: var(--primary);
+                      letter-spacing: 0.5px;
+                  }
+                  header p {
+                      margin: 0.5rem 0 0 0;
+                      color: var(--text-muted);
+                      font-size: 0.9rem;
+                  }
+                  main {
+                      flex: 1;
+                      padding: 2rem;
+                      max-width: 1200px;
+                      margin: 0 auto;
+                      width: calc(100% - 4rem);
+                  }
+                  .section-title {
+                      font-size: 1.3rem;
+                      margin-bottom: 1rem;
+                      color: var(--primary);
+                      border-left: 4px solid var(--primary);
+                      padding-left: 0.5rem;
+                  }
+                  .card {
+                      background-color: var(--card-bg);
+                      border: 1px solid var(--border);
+                      border-radius: 8px;
+                      padding: 1.5rem;
+                      margin-bottom: 2rem;
+                      overflow-x: auto;
+                      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                  }
+                  table {
+                      width: 100%;
+                      border-collapse: collapse;
+                      text-align: left;
+                      font-size: 0.9rem;
+                  }
+                  th {
+                      background-color: #111827;
+                      color: var(--primary);
+                      font-weight: 600;
+                      padding: 0.75rem 1rem;
+                      border-bottom: 2px solid var(--border);
+                  }
+                  td {
+                      padding: 0.75rem 1rem;
+                      border-bottom: 1px solid var(--border);
+                      color: #e2e8f0;
+                  }
+                  tr:hover {
+                      background-color: #24334d;
+                  }
+                  code {
+                      background-color: #0f172a;
+                      padding: 0.2rem 0.4rem;
+                      border-radius: 4px;
+                      color: #f472b6;
+                      font-family: monospace;
+                  }
+                  .badge {
+                      display: inline-block;
+                      padding: 0.25rem 0.5rem;
+                      border-radius: 4px;
+                      font-size: 0.75rem;
+                      font-weight: 700;
+                      text-transform: uppercase;
+                  }
+                  .badge-success { background-color: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
+                  .badge-info { background-color: rgba(14, 165, 233, 0.2); color: var(--info); border: 1px solid var(--info); }
+                  
+                  footer {
+                      background-color: var(--card-bg);
+                      border-top: 1px solid var(--border);
+                      text-align: center;
+                      padding: 1rem;
+                      font-size: 0.85rem;
+                      color: var(--text-muted);
+                      font-weight: 500;
+                  }
+              </style>
+          </head>
+          <body>
+
+              <header>
+                  <h1>Kubernetes Cluster Live Info Dashboard</h1>
+                  <p>Generated on: $TIMESTAMP</p>
+              </header>
+
+              <main>
+                  <div class="section-title">Cluster Context Info</div>
+                  <div class="card">
+                      <p style="margin:0; font-family:monospace; color:#38bdf8;">$CLUSTER_INFO</p>
+                  </div>
+
+                  <div class="section-title">Cluster Infrastructure Nodes</div>
+                  <div class="card">
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>Node Name</th>
+                                  <th>Status</th>
+                                  <th>Role</th>
+                                  <th>Age</th>
+                                  <th>Kubelet Version</th>
+                                  <th>Internal IP</th>
+                                  <th>OS Image</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              $NODE_ROWS
+                          </tbody>
+                      </table>
+                  </div>
+
+                  <div class="section-title">Active Running Pods (All Namespaces)</div>
+                  <div class="card">
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>Namespace</th>
+                                  <th>Pod Name</th>
+                                  <th>Ready</th>
+                                  <th>Status</th>
+                                  <th>Restarts</th>
+                                  <th>Assigned Node</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              $POD_ROWS
+                          </tbody>
+                      </table>
+                  </div>
+              </main>
+
+              <footer>
+                  sivahari's test platform
+              </footer>
+
+          </body>
+          </html>
+          EOF
+
+      - name: Save Generated Dashboard as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-html-dashboard
+          path: dashboard.html
