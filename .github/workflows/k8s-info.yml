@@ -14,6 +14,12 @@ jobs:
       - name: Checkout Repository Code
         uses: actions/checkout@v4
 
+      # --- NEW STEP TO FIX THE GIT ERROR ---
+      - name: Install System Dependencies (Git & Node.js)
+        run: |
+          echo "Installing git and nodejs on the RHEL 9 Runner VM..."
+          sudo dnf install git nodejs -y
+
       - name: Set up Kubeconfig
         run: |
           mkdir -p $HOME/.kube
