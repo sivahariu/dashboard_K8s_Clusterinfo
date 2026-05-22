@@ -1,22 +1,20 @@
 name: Generate K8s Cluster Dashboard
 
 on:
-  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+  workflow_dispatch:
 
-# Grant the standard GitHub token permissions to deploy directly to Pages hosting
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Ensure only one deployment runs at a time to prevent conflicts
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
   build-and-deploy:
-    runs-on: self-hosted # Executes natively on your 1-vCPU RHEL VM
+    runs-on: self-hosted
 
     steps:
       - name: Checkout Repository Code
@@ -24,7 +22,6 @@ jobs:
 
       - name: Install System Dependencies (Git & Node.js)
         run: |
-          echo "Syncing system packages..."
           sudo dnf install git nodejs -y
 
       - name: Set up Kubeconfig
@@ -36,39 +33,123 @@ jobs:
       - name: Ensure kubectl is installed
         run: |
           if ! command -v kubectl &> /dev/null; then
-            echo "kubectl missing. Downloading binary..."
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x ./kubectl
             sudo mv ./kubectl /usr/local/bin/kubectl
-          else
-            echo "kubectl is already available."
           fi
 
       - name: Extract Data and Generate HTML
         run: |
-          # 1. Fetch Cluster Metadata
+          # 1. Fetch Cluster Metadata and Timestamp
           CLUSTER_INFO=$(kubectl cluster-info | head -n 2 | sed 's/\x1B\[[0-9;]*[JKmsu]//g')
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
-          # 2. Extract Infrastructure Nodes cleanly using explicit JSON arrays to handle spaces flawlessly
-          NODE_ROWS=""
-          while IFS=$'\t' read -r name status roles age version internal_ip os_image; do
-            if [[ -z "$name" ]]; then continue; fi
-            
-            # Clean up empty or missing role values
-            if [[ -z "$roles" || "$roles" == "<none>" ]]; then roles="worker"; fi
+          # 2. Dump clean raw JSON data structures
+          kubectl get nodes -o json > nodes.json
+          kubectl get pods -A -o json > pods.json
 
-            NODE_ROWS="$NODE_ROWS<tr><td><strong>$name</strong></td><td><span class='badge badge-success'>$status</span></td><td><code>$roles</code></td><td>$age</td><td>$version</td><td>$internal_ip</td><td>$os_image</td></tr>"
-          done < <(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\t"}{.metadata.labels.kubernetes\.io/role}{"\t"}{.metadata.creationTimestamp}{"\t"}{.status.nodeInfo.kubeletVersion}{"\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}' | sed 's/True/Ready/g')
+          # 3. Process data using a robust, error-proof Python block
+          python3 -c "
+          import json
+          from datetime import datetime, timezone
 
-          # 3. Extract Running Pods across all namespaces
-          POD_ROWS=""
-          while read -r ns name ready status restarts age ip node; do
-            if [[ "$ns" == "NAMESPACE" || -z "$ns" ]]; then continue; fi
-            POD_ROWS="$POD_ROWS<tr><td><code>$ns</code></td><td>$name</td><td>$ready</td><td><span class='badge badge-info'>$status</span></td><td>$restarts</td><td>$node</td></tr>"
-          done < <(kubectl get pods -A -o wide | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}')
+          current_time = datetime.now(timezone.utc)
 
-          # 4. Generate the complete dashboard index.html file
+          # Function to calculate relative age (e.g., 17d)
+          def calculate_age(timestamp_str):
+              try:
+                  creation_time = datetime.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                  diff = current_time - creation_time
+                  if diff.days > 0:
+                      return f'{diff.days}d'
+                  hours = diff.seconds // 3600
+                  if hours > 0:
+                      return f'{hours}h'
+                  minutes = (diff.seconds % 3600) // 60
+                  return f'{minutes}m'
+              except:
+                  return '<unknown>'
+
+          # --- PROCESS NODES ---
+          node_rows = ''
+          try:
+              with open('nodes.json') as f:
+                  nodes_data = json.load(f)
+              for node in nodes_data.get('items', []):
+                  name = node['metadata']['name']
+                  
+                  # Parse Status
+                  status = 'Unknown'
+                  for cond in node['status'].get('conditions', []):
+                      if cond['type'] == 'Ready':
+                          status = 'Ready' if cond['status'] == 'True' else 'NotReady'
+                  
+                  # Parse Roles Safely (Checks standard K8s role label structures)
+                  labels = node['metadata'].get('labels', {})
+                  role = 'worker'
+                  for key in labels.keys():
+                      if 'node-role.kubernetes.io/' in key:
+                          role = key.split('/')[-1]
+                      elif 'kubernetes.io/role' in key:
+                          role = labels[key]
+                  
+                  # Calculate Relative Age (e.g., 17d) instead of raw timestamp strings
+                  age = calculate_age(node['metadata']['creationTimestamp'])
+                  version = node['status']['nodeInfo']['kubeletVersion']
+                  
+                  # Parse Internal IP safely
+                  internal_ip = '<none>'
+                  for addr in node['status'].get('addresses', []):
+                      if addr['type'] == 'InternalIP':
+                          internal_ip = addr['address']
+                          
+                  os_image = node['status']['nodeInfo']['osImage']
+                  
+                  node_rows += f'<tr><td><strong>{name}</strong></td><td><span class=\"badge badge-success\">{status}</span></td><td><code>{role}</code></td><td>{age}</td><td>{version}</td><td>{internal_ip}</td><td>{os_image}</td></tr>'
+          except Exception as e:
+              node_rows = f'<tr><td colspan=\"7\">Error parsing nodes: {str(e)}</td></tr>'
+
+          # --- PROCESS PODS ---
+          pod_rows = ''
+          try:
+              with open('pods.json') as f:
+                  pods_data = json.load(f)
+              for pod in pods_data.get('items', []):
+                  if pod['status'].get('phase') != 'Running':
+                      continue
+                      
+                  ns = pod['metadata']['namespace']
+                  name = pod['metadata']['name']
+                  
+                  # Calculate Ready Containers String
+                  container_statuses = pod['status'].get('containerStatuses', [])
+                  ready_count = sum(1 for c in container_statuses if c.get('ready'))
+                  total_count = len(pod['spec'].get('containers', []))
+                  ready_str = f'{ready_count}/{total_count}'
+                  
+                  status = pod['status'].get('phase', 'Running')
+                  
+                  # Calculate Total Restarts
+                  restarts = 0
+                  if container_statuses:
+                      restarts = sum(c.get('restartCount', 0) for c in container_statuses)
+                      
+                  # Direct node assignment lookup
+                  node_assigned = pod['spec'].get('nodeName', '<none>')
+                  
+                  pod_rows += f'<tr><td><code>{ns}</code></td><td>{name}</td><td>{ready_str}</td><td><span class=\"badge badge-info\">{status}</span></td><td>{restarts}</td><td>{node_assigned}</td></tr>'
+          except Exception as e:
+              pod_rows = f'<tr><td colspan=\"6\">Error parsing pods: {str(e)}</td></tr>'
+
+          # Write processed table lines back to runner environment
+          with open('node_rows.txt', 'w') as f: f.write(node_rows)
+          with open('pod_rows.txt', 'w') as f: f.write(pod_rows)
+          "
+
+          NODE_ROWS=$(cat node_rows.txt)
+          POD_ROWS=$(cat pod_rows.txt)
+
+          # 4. Generate the flawless dashboard HTML page
           cat <<EOF > index.html
           <!DOCTYPE html>
           <html lang="en">
@@ -127,6 +208,7 @@ jobs:
               <main>
                   <div class="section-title">Cluster Context Info</div>
                   <div class="card"><p style="margin:0; font-family:monospace; color:#38bdf8;">$CLUSTER_INFO</p></div>
+                  
                   <div class="section-title">Cluster Infrastructure Nodes</div>
                   <div class="card">
                       <table>
@@ -135,15 +217,18 @@ jobs:
                                   <th>Node Name</th>
                                   <th>Status</th>
                                   <th>Role</th>
-                                  <th>Age (Creation Time)</th>
+                                  <th>Age</th>
                                   <th>Kubelet Version</th>
                                   <th>Internal IP</th>
                                   <th>OS Image</th>
                               </tr>
                           </thead>
-                          <tbody>$NODE_ROWS</tbody>
+                          <tbody>
+                              $NODE_ROWS
+                          </tbody>
                       </table>
                   </div>
+                  
                   <div class="section-title">Active Running Pods (All Namespaces)</div>
                   <div class="card">
                       <table>
@@ -157,7 +242,9 @@ jobs:
                                   <th>Assigned Node</th>
                               </tr>
                           </thead>
-                          <tbody>$POD_ROWS</tbody>
+                          <tbody>
+                              $POD_ROWS
+                          </tbody>
                       </table>
                   </div>
               </main>
@@ -166,10 +253,13 @@ jobs:
           </html>
           EOF
 
+          # Clean up temporary buffers
+          rm -f nodes.json pods.json node_rows.txt pod_rows.txt
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.' # Captures the generated index.html
+          path: '.'
 
       - name: Deploy to GitHub Pages Direct
         uses: actions/deploy-pages@v4
