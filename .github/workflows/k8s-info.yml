@@ -1,0 +1,52 @@
+name: Extract Kubernetes Cluster Info
+
+on:
+  workflow_dispatch: # Allows you to trigger this manually from the GitHub UI
+
+jobs:
+  get-cluster-details:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig
+        run: |
+          # Create the local .kube directory on the runner VM
+          mkdir -p $HOME/.kube
+          
+          # Save the secure GitHub Secret into the local config file
+          echo "${{ secrets.KUBERNETES_KUBECONFIG }}" > $HOME/.kube/config
+          
+          # Restrict file permissions for security
+          chmod 600 $HOME/.kube/config
+
+      - name: Install kubectl (If not present)
+        run: |
+          # Checks if kubectl is installed, downloads it if missing
+          if ! command -v kubectl &> /dev/null; then
+            echo "kubectl not found. Installing..."
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x ./kubectl
+            sudo mv ./kubectl /usr/local/bin/kubectl
+          else
+            echo "kubectl is already installed."
+          fi
+
+      - name: Extract Cluster Information
+        run: |
+          echo "=== Global Cluster Info ==="
+          kubectl cluster-info
+          
+          echo -e "\n=== Component Status ==="
+          kubectl get componentstatuses || echo "Component status check skipped (deprecated in newer K8s)"
+          
+          echo -e "\n=== Cluster Nodes ==="
+          kubectl get nodes -o wide
+          
+          echo -e "\n=== Namespaces ==="
+          kubectl get namespaces
+          
+          echo -e "\n=== Summary of Running Pods (All Namespaces) ==="
+          kubectl get pods -A --field-selector=status.phase=Running
