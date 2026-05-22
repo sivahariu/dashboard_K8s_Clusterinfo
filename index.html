@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Cluster Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --border: #334155;
+            --success: #10b981;
+            --info: #0ea5e9;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            text-align: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: var(--primary);
+            letter-spacing: 0.5px;
+        }
+        header p {
+            margin: 0.5rem 0 0 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: calc(100% - 4rem);
+        }
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            border-left: 4px solid var(--primary);
+            padding-left: 0.5rem;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            overflow-x: auto;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        th {
+            background-color: #111827;
+            color: var(--primary);
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: #e2e8f0;
+        }
+        tr:hover {
+            background-color: #24334d;
+        }
+        code {
+            background-color: #0f172a;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            color: #f472b6;
+            font-family: monospace;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-success { background-color: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .badge-info { background-color: rgba(14, 165, 233, 0.2); color: var(--info); border: 1px solid var(--info); }
+        
+        footer {
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border);
+            text-align: center;
+            padding: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Kubernetes Cluster Live Info Dashboard</h1>
+        <p>Generated on: 2026-05-22 12:10:18 UTC</p>
+    </header>
+
+    <main>
+        <div class="section-title">Cluster Context Info</div>
+        <div class="card">
+            <p style="margin:0; font-family:monospace; color:#38bdf8;">Kubernetes control plane is running at https://10.128.0.5:6443
+CoreDNS is running at https://10.128.0.5:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy</p>
+        </div>
+
+        <div class="section-title">Cluster Infrastructure Nodes</div>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Node Name</th>
+                        <th>Status</th>
+                        <th>Role</th>
+                        <th>Age (Creation Time)</th>
+                        <th>Kubelet Version</th>
+                        <th>Internal IP</th>
+                        <th>OS Image</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>master-1</strong></td><td><span class='badge badge-success'>Ready</span></td><td><code>2026-04-28T19:54:45Z</code></td><td>v1.30.14</td><td>10.128.0.5</td><td>Red Hat Enterprise Linux 9.7 (Plow)</td><td></td></tr><tr><td><strong>master-2</strong></td><td><span class='badge badge-success'>Ready</span></td><td><code>2026-04-28T20:08:58Z</code></td><td>v1.30.14</td><td>10.128.0.6</td><td>Red Hat Enterprise Linux 9.7 (Plow)</td><td></td></tr><tr><td><strong>worker-1</strong></td><td><span class='badge badge-success'>Ready</span></td><td><code>2026-04-28T20:15:10Z</code></td><td>v1.30.14</td><td>10.128.0.7</td><td>Red Hat Enterprise Linux 9.7 (Plow)</td><td></td></tr><tr><td><strong>worker-2</strong></td><td><span class='badge badge-success'>Ready</span></td><td><code>2026-04-28T20:15:30Z</code></td><td>v1.30.14</td><td>10.128.0.8</td><td>Red Hat Enterprise Linux 9.7 (Plow)</td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-title">Active Running Pods (All Namespaces)</div>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Namespace</th>
+                        <th>Pod Name</th>
+                        <th>Ready</th>
+                        <th>Status</th>
+                        <th>Restarts</th>
+                        <th>Assigned Node</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>argocd</code></td><td>argocd-application-controller-0</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>argocd</code></td><td>argocd-applicationset-controller-fc46d9df8-4jpdt</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>argocd</code></td><td>argocd-dex-server-fbd777595-h89cf</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>argocd</code></td><td>argocd-notifications-controller-5b8c579c7f-nhvqt</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>argocd</code></td><td>argocd-redis-5c5cbddf66-gt8w6</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>argocd</code></td><td>argocd-repo-server-89b765c5b-h2cs2</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>7</td><td>17d</td></tr><tr><td><code>argocd</code></td><td>argocd-server-589689dd8-tpnlp</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>cattle-fleet-system</code></td><td>fleet-agent-84f88d9d4-zq5gr</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>17d</td></tr><tr><td><code>cattle-system</code></td><td>cattle-cluster-agent-fdc4d4b9b-8rknl</td><td>0/1</td><td><span class='badge badge-info'>CrashLoopBackOff</span></td><td>4466</td><td>17d</td></tr><tr><td><code>cattle-system</code></td><td>cattle-cluster-agent-fdc4d4b9b-sl7j2</td><td>0/1</td><td><span class='badge badge-info'>CrashLoopBackOff</span></td><td>4467</td><td>17d</td></tr><tr><td><code>cattle-system</code></td><td>rancher-webhook-d9c9d9c48-75l9n</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>default</code></td><td>adservice-8d9d67f7-w7hxv</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-application-controller-0</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-applicationset-controller-7bc4bd95d5-6x9vj</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-dex-server-6d9ff89f9d-flf6d</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-notifications-controller-54f5648686-8k8t9</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-redis-68b86cb887-vzg2l</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-repo-server-8c799bf8f-jvq5c</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>6</td><td>17d</td></tr><tr><td><code>default</code></td><td>argocd-server-7968c65bd5-vlc8d</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>cartservice-7b6889d85b-srlxs</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>checkoutservice-5987dfd54c-4xgjp</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>currencyservice-8c464cb79-5dtjh</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>emailservice-7b7898b7f7-zr47x</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>7</td><td>17d</td></tr><tr><td><code>default</code></td><td>frontend-849f6b48f8-687hr</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>16d</td></tr><tr><td><code>default</code></td><td>frontend-849f6b48f8-8phs4</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>16d</td></tr><tr><td><code>default</code></td><td>frontend-849f6b48f8-9tb25</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>16d</td></tr><tr><td><code>default</code></td><td>frontend-849f6b48f8-zln2h</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>16d</td></tr><tr><td><code>default</code></td><td>kube-ops-view-5b67f8ffcf-b767r</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>16d</td></tr><tr><td><code>default</code></td><td>kube-ops-view-redis-64cfc8d95f-cskgk</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>default</code></td><td>loadgenerator-746ffcd44c-rlvqg</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>default</code></td><td>paymentservice-5d879448df-mcxm5</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>podinfo-5887c85958-7vbb4</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>1</td><td>2d1h</td></tr><tr><td><code>default</code></td><td>podinfo-5887c85958-k2xqd</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>1</td><td>2d2h</td></tr><tr><td><code>default</code></td><td>productcatalogservice-64cd8c46d9-jsh6k</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>recommendationservice-6989468ddf-5zqk4</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>6</td><td>17d</td></tr><tr><td><code>default</code></td><td>redis-cart-7ff8f4d6ff-dmcj5</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>shippingservice-69cbf7c6c7-8tmr9</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>3</td><td>17d</td></tr><tr><td><code>default</code></td><td>web-guestbook-helm-guestbook-75f54c4dc7-pvs72</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>17d</td></tr><tr><td><code>kube-flannel</code></td><td>kube-flannel-ds-4kh64</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>23d</td></tr><tr><td><code>kube-flannel</code></td><td>kube-flannel-ds-jvbj7</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-flannel</code></td><td>kube-flannel-ds-ktxbm</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>23d</td></tr><tr><td><code>kube-flannel</code></td><td>kube-flannel-ds-sl28x</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>6</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>coredns-55cb58b774-9sp4r</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>coredns-55cb58b774-zd77g</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>etcd-master-1</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>etcd-master-2</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-apiserver-master-1</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>8</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-apiserver-master-2</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>7</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-controller-manager-master-1</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>6</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-controller-manager-master-2</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-proxy-7gkcq</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-proxy-c5l2m</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-proxy-h2fx6</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-proxy-t9vbk</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>4</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-scheduler-master-1</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr><tr><td><code>kube-system</code></td><td>kube-scheduler-master-2</td><td>1/1</td><td><span class='badge badge-info'>Running</span></td><td>5</td><td>23d</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <footer>
+        sivahari's test platform
+    </footer>
+
+</body>
+</html>
