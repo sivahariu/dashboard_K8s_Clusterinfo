@@ -1,7 +1,10 @@
 name: Generate K8s Cluster Dashboard
 
 on:
-  workflow_dispatch: # Allows manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write # Crucial for pushing the live dashboard to GitHub Pages
 
 jobs:
   build-html-dashboard:
@@ -28,15 +31,18 @@ jobs:
       - name: Extract Data and Generate HTML
         run: |
           # 1. Fetch Cluster Metadata
-          CLUSTER_INFO=$(kubectl cluster-info | head -n 2 | sed 's/\x1B\[[0-9;]*[JKmsu]//g') # Strips out ANSI colors
+          CLUSTER_INFO=$(kubectl cluster-info | head -n 2 | sed 's/\x1B\[[0-9;]*[JKmsu]//g')
           TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
-          # 2. Extract Cluster Nodes and format as HTML table rows
+          # 2. Extract Cluster Nodes cleanly using JSON structures to handle spaces perfectly
           NODE_ROWS=""
-          while read -r name status roles age version internal_ip os_image kernel; do
-            # Skip the header row
-            if [[ "$name" == "NAME" ]]; then continue; fi
-            NODE_ROWS="$NODE_ROWS<tr><td><strong>$name</strong></td><td><span class='badge badge-success'>$status</span></td><td>$roles</td><td>$age</td><td>$version</td><td>$internal_ip</td><td>$os_image</td></tr>"
+          while IFS=$'\t' read -r name status roles age version internal_ip os_image; do
+            if [[ -z "$name" ]]; then continue; fi
+            
+            # Handle empty roles cleanly
+            if [[ -z "$roles" || "$roles" == "<none>" ]]; then roles="worker"; fi
+
+            NODE_ROWS="$NODE_ROWS<tr><td><strong>$name</strong></td><td><span class='badge badge-success'>$status</span></td><td><code>$roles</code></td><td>$age</td><td>$version</td><td>$internal_ip</td><td>$os_image</td></tr>"
           done < <(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\t"}{.metadata.labels.kubernetes\.io/role}{"\t"}{.metadata.creationTimestamp}{"\t"}{.status.nodeInfo.kubeletVersion}{"\t"}{.status.addresses[?(@.type=="InternalIP")].address}{"\t"}{.status.nodeInfo.osImage}{"\n"}{end}' | sed 's/True/Ready/g')
 
           # 3. Extract Running Pods across all namespaces
@@ -46,8 +52,8 @@ jobs:
             POD_ROWS="$POD_ROWS<tr><td><code>$ns</code></td><td>$name</td><td>$ready</td><td><span class='badge badge-info'>$status</span></td><td>$restarts</td><td>$node</td></tr>"
           done < <(kubectl get pods -A -o wide | awk '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}')
 
-          # 4. Generate the complete dashboard.html file
-          cat <<EOF > dashboard.html
+          # 4. Generate the complete dashboard index.html file
+          cat <<EOF > index.html
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -186,7 +192,7 @@ jobs:
                                   <th>Node Name</th>
                                   <th>Status</th>
                                   <th>Role</th>
-                                  <th>Age</th>
+                                  <th>Age (Creation Time)</th>
                                   <th>Kubelet Version</th>
                                   <th>Internal IP</th>
                                   <th>OS Image</th>
@@ -226,8 +232,9 @@ jobs:
           </html>
           EOF
 
-      - name: Save Generated Dashboard as Artifact
-        uses: actions/upload-artifact@v4
+      - name: Deploy Live Link to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          name: k8s-html-dashboard
-          path: dashboard.html
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          keep_files: false
